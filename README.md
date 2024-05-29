@@ -1,6 +1,6 @@
 # Instrucciones
 ## Crear entorno virtual
-python -m vevn .venv
+python -m venv .venv
 
 ## Activar el entorno
 .venv/Scripts/Activate.ps1
