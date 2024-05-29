@@ -66,98 +66,99 @@ def convert_result_to_image( bgr_image, resized_image, boxes, annotations, thres
                     cv2.LINE_AA,
                 )
     return rgb_image
+def metodo_principal(file_path):
+    # Inicializamos OpenVINO
+    core = ov.Core()
 
-# Inicializamos OpenVINO
-core = ov.Core()
+    # Directorio de los modelos
+    model_dir = Path( "model" )
+    precision = "FP16"
+    detection_model = "horizontal-text-detection-0001"
+    recognition_model = "text-recognition-resnet-fc"
 
-# Directorio de los modelos
-model_dir = Path( "model" )
-precision = "FP16"
-detection_model = "horizontal-text-detection-0001"
-recognition_model = "text-recognition-resnet-fc"
+    # Descargar y convertir los modelos en caso de que no existan
+    if not model_dir.exists():
+        model_dir.mkdir(exist_ok=True)
+        download_command = f"omz_downloader --name {detection_model},{recognition_model} --output_dir {model_dir} --cache_dir {model_dir} --precision {precision} --num_attempts 5"
 
-# Descargar y convertir los modelos en caso de que no existan
-if not model_dir.exists():
-    model_dir.mkdir(exist_ok=True)
-    download_command = f"omz_downloader --name {detection_model},{recognition_model} --output_dir {model_dir} --cache_dir {model_dir} --precision {precision} --num_attempts 5"
+        os.system(download_command)
 
-    os.system(download_command)
+        convert_command = f"omz_converter --name {recognition_model} --precisions {precision} --download_dir {model_dir} --output_dir {model_dir}"
 
-    convert_command = f"omz_converter --name {recognition_model} --precisions {precision} --download_dir {model_dir} --output_dir {model_dir}"
+        os.system(convert_command)
 
-    os.system(convert_command)
+    detection_model_path = ( model_dir/"intel/horizontal-text-detection-0001"/precision/detection_model ).with_suffix(".xml")
+    recognition_model_path = ( model_dir/"public/text-recognition-resnet-fc"/precision/recognition_model ).with_suffix(".xml")
 
-detection_model_path = ( model_dir/"intel/horizontal-text-detection-0001"/precision/detection_model ).with_suffix(".xml")
-recognition_model_path = ( model_dir/"public/text-recognition-resnet-fc"/precision/recognition_model ).with_suffix(".xml")
+    # Seleccionar el dispositivo
+    device = "CPU"
 
-# Seleccionar el dispositivo
-device = "CPU"
+    # Leer y compilar los modelos
+    detection_model = core.read_model( model=detection_model_path, weights=detection_model_path.with_suffix(".bin") )
+    detection_compiled_model = core.compile_model( model=detection_model, device_name=device )
 
-# Leer y compilar los modelos
-detection_model = core.read_model( model=detection_model_path, weights=detection_model_path.with_suffix(".bin") )
-detection_compiled_model = core.compile_model( model=detection_model, device_name=device )
+    recognition_model = core.read_model( model=recognition_model_path, weights=recognition_model_path.with_suffix(".bin") )
+    recognition_compiled_model = core.compile_model( model=recognition_model, device_name=device )
 
-recognition_model = core.read_model( model=recognition_model_path, weights=recognition_model_path.with_suffix(".bin") )
-recognition_compiled_model = core.compile_model( model=recognition_model, device_name=device )
+    detetcion_input_layer = detection_compiled_model.input( 0 )
+    recognition_output_layer = recognition_compiled_model.output( 0 )
+    recognition_input_layer = recognition_compiled_model.input( 0 )
 
-detetcion_input_layer = detection_compiled_model.input( 0 )
-recognition_output_layer = recognition_compiled_model.output( 0 )
-recognition_input_layer = recognition_compiled_model.input( 0 )
+    # Parámetros del modelo de detección
+    N, C, H, W = detetcion_input_layer.shape
 
-# Parámetros del modelo de detección
-N, C, H, W = detetcion_input_layer.shape
+    # Cargar una imagen de ejemplo
+    image_file = file_path
+    image = load_image( image_file )
 
-# Cargar una imagen de ejemplo
-image_file = "https://www.mayoreototal.mx/cdn/shop/products/7501020515343_1000x.jpg?v=1626803116"
-image = load_image( image_file )
+    # Procesar la imagen con el modelo
+    resized_image = cv2.resize( image, ( W, H ) )
+    input_image = np.expand_dims( resized_image.transpose( 2, 0, 1 ), 0 )
 
-# Procesar la imagen con el modelo
-resized_image = cv2.resize( image, ( W, H ) )
-input_image = np.expand_dims( resized_image.transpose( 2, 0, 1 ), 0 )
+    # Realizar la detección
+    output_key = detection_compiled_model.output( "boxes" )
+    boxes = detection_compiled_model( [ input_image ] )[ output_key ]
+    boxes = boxes[ ~np.all( boxes == 0, axis=1 ) ]
 
-# Realizar la detección
-output_key = detection_compiled_model.output( "boxes" )
-boxes = detection_compiled_model( [ input_image ] )[ output_key ]
-boxes = boxes[ ~np.all( boxes == 0, axis=1 ) ]
+    # Parámetros del modelo de reconocimiento
+    _, _, H, W = recognition_input_layer.shape
+    ( real_y, real_x ), ( resized_y, resized_x ) = image.shape[ :2 ], resized_image.shape[ :2 ]
+    ratio_x, ratio_y = real_x / resized_x, real_y / resized_y
+    grayscale_image = cv2.cvtColor( image, cv2.COLOR_BGR2GRAY )
+    letters = "~0123456789abcdefghijkmnopqrstuwxyz"
 
-# Parámetros del modelo de reconocimiento
-_, _, H, W = recognition_input_layer.shape
-( real_y, real_x ), ( resized_y, resized_x ) = image.shape[ :2 ], resized_image.shape[ :2 ]
-ratio_x, ratio_y = real_x / resized_x, real_y / resized_y
-grayscale_image = cv2.cvtColor( image, cv2.COLOR_BGR2GRAY )
-letters = "~0123456789abcdefghijkmnopqrstuwxyz"
+    annotations = []
+    cropped_images = []
 
-annotations = []
-cropped_images = []
+    for crop in boxes:
+        ( x_min, y_min, x_max, y_max ) = map( int, multiply_by_ratio( ratio_x, ratio_y, crop ) )
+        image_crop = run_preprocesing_on_crop( grayscale_image[ y_min:y_max, x_min:x_max ], ( W, H ) )
+        result = recognition_compiled_model( [ image_crop ] )[ recognition_output_layer ]
+        recognition_results_test = np.squeeze( result )
 
-for crop in boxes:
-    ( x_min, y_min, x_max, y_max ) = map( int, multiply_by_ratio( ratio_x, ratio_y, crop ) )
-    image_crop = run_preprocesing_on_crop( grayscale_image[ y_min:y_max, x_min:x_max ], ( W, H ) )
-    result = recognition_compiled_model( [ image_crop ] )[ recognition_output_layer ]
-    recognition_results_test = np.squeeze( result )
+        annotation = []
 
-    annotation = []
+        for letter in recognition_results_test:
+            parsed_letter = letters[ letter.argmax() ]
 
-    for letter in recognition_results_test:
-        parsed_letter = letters[ letter.argmax() ]
+            if parsed_letter == letters[ 0 ]:
+                break
 
-        if parsed_letter == letters[ 0 ]:
-            break
+            annotation.append( parsed_letter )
+        annotations.append( "".join( annotation ) )
+        cropped_images.append( image[ y_min:y_max, x_min:x_max ] )
 
-        annotation.append( parsed_letter )
-    annotations.append( "".join( annotation ) )
-    cropped_images.append( image[ y_min:y_max, x_min:x_max ] )
+    # Mostrar los resultados
+    output_image = convert_result_to_image( image, resized_image, boxes, annotations, conf_labels=True )
 
-# Mostrar los resultados
-output_image = convert_result_to_image( image, resized_image, boxes, annotations, conf_labels=True )
-
-plt.figure( figsize=( 12, 12 ) )
-plt.imshow( output_image )
-plt.show()
-
-for cropped_image, annotation in zip( cropped_images, annotations ):
-    plt.imshow( cropped_image, cmap='gray' )
-    plt.title( "".join( annotation ) )
+    plt.figure( figsize=( 12, 12 ) )
+    plt.imshow( output_image )
     plt.show()
 
-print( [ annotation for _, annotation in sorted( zip( boxes, annotations ), key=lambda x: x[ 0 ][ 0 ] ** 2 + x[ 0 ][ 1 ] ** 2 ) ] )
+    for cropped_image, annotation in zip( cropped_images, annotations ):
+        plt.imshow( cropped_image, cmap='gray' )
+        plt.title( "".join( annotation ) )
+        plt.show()
+
+    print( [ annotation for _, annotation in sorted( zip( boxes, annotations ), key=lambda x: x[ 0 ][ 0 ] ** 2 + x[ 0 ][ 1 ] ** 2 ) ] )
+    return [ annotation for _, annotation in sorted( zip( boxes, annotations ), key=lambda x: x[ 0 ][ 0 ] ** 2 + x[ 0 ][ 1 ] ** 2 ) ]
