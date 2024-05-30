@@ -149,16 +149,16 @@ def metodo_principal(file_path):
         cropped_images.append( image[ y_min:y_max, x_min:x_max ] )
 
     # Mostrar los resultados
-    output_image = convert_result_to_image( image, resized_image, boxes, annotations, conf_labels=True )
+    # output_image = convert_result_to_image( image, resized_image, boxes, annotations, conf_labels=True )
 
-    plt.figure( figsize=( 12, 12 ) )
-    plt.imshow( output_image )
-    plt.show()
+    # plt.figure( figsize=( 12, 12 ) )
+    # plt.imshow( output_image )
+    # plt.show()
 
-    for cropped_image, annotation in zip( cropped_images, annotations ):
-        plt.imshow( cropped_image, cmap='gray' )
-        plt.title( "".join( annotation ) )
-        plt.show()
+    # for cropped_image, annotation in zip( cropped_images, annotations ):
+    #     plt.imshow( cropped_image, cmap='gray' )
+    #     plt.title( "".join( annotation ) )
+    #     plt.show()
 
     print( [ annotation for _, annotation in sorted( zip( boxes, annotations ), key=lambda x: x[ 0 ][ 0 ] ** 2 + x[ 0 ][ 1 ] ** 2 ) ] )
     return [ annotation for _, annotation in sorted( zip( boxes, annotations ), key=lambda x: x[ 0 ][ 0 ] ** 2 + x[ 0 ][ 1 ] ** 2 ) ]

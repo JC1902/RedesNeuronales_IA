@@ -36,7 +36,7 @@ def extract_text():
     
     # Elimina la imagen después de procesarla
     os.remove(filepath)
-
+    print(extracted_text)
     return jsonify({'extracted_text': extracted_text})
 
 if __name__ == '__main__':
