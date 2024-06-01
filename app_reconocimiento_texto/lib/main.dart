@@ -8,6 +8,7 @@ import 'dart:convert';
 void main() {
   runApp(MyApp());
 }
+
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -77,11 +78,75 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => ImageProviderModel(),
       child: MaterialApp(
-        title: 'Detector de texto App',
+        debugShowCheckedModeBanner: false,
+        title: 'Detector de Texto AI',
         theme: ThemeData(
           primarySwatch: Colors.blue,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF003366), // Azul rey
+            foregroundColor: Colors.white, // Texto en blanco
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ButtonStyle(
+              backgroundColor: MaterialStateProperty.all(Color(0xFF003366)), // Azul rey
+              foregroundColor: MaterialStateProperty.all(Colors.white), // Texto en blanco
+            ),
+          ),
         ),
-        home: MyHomePage(),
+        home: SplashScreen(),
+      ),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MyHomePage()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'TextFinder AI',
+              style: TextStyle(
+                fontSize: 36.0,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Retro Gaming',
+              ),
+            ),
+            const SizedBox(height: 40.0), // Aumenta el espacio entre el texto y la imagen
+            SizedBox(
+              height: 300.0, // Ajusta el tamaño de la caja de imagen
+              width: 400.0, // Ajusta el tamaño de la caja de imagen
+              child: Image.asset('assets/logo.png'), // Cambia 'assets/icon.png' por la ruta de tu icono
+            ),
+            const SizedBox(height: 40.0), // Aumenta el espacio entre la imagen y el progress bar
+            const SizedBox(
+              height: 60.0, // Ajusta el tamaño del CircularProgressIndicator
+              width: 60.0, // Ajusta el tamaño del CircularProgressIndicator
+              child: CircularProgressIndicator(), // Progress bar circular
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -105,7 +170,7 @@ class MyHomePage extends StatelessWidget {
   }
 
   Future<bool> _checkServerConnection() async {
-    final uri = Uri.parse('http://192.168.1.4:5000/ping');
+    final uri = Uri.parse('http://192.168.1.14:5000/ping');
     try {
       print('Error connecting to server: conectando..');
       final response = await http.get(uri);
@@ -122,7 +187,7 @@ class MyHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flutter Camera App'),
+        title: const Text('Menú Principal'),
       ),
       body: Center(
         child: Column(
@@ -144,14 +209,14 @@ class MyHomePage extends StatelessWidget {
                           onPressed: () {
                             Navigator.of(context).pop();
                           },
-                          child: const Text('Close'),
+                          child: const Text('Cerrar'),
                         ),
                       ],
                     ),
                   );
                 }
               },
-              child: const Text('Open Camera'),
+              child: const Text('Abrir la Cámara'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -161,7 +226,7 @@ class MyHomePage extends StatelessWidget {
                   MaterialPageRoute(builder: (context) => HistoryPage()),
                 );
               },
-              child: const Text('Historial de Datos'),
+              child: const Text('Textos Identificados'),
             ),
           ],
         ),
@@ -177,7 +242,7 @@ class DisplayPictureScreen extends StatelessWidget {
     final image = Provider.of<ImageProviderModel>(context, listen: false).image;
     if (image == null) return;
 
-    final uri = Uri.parse('http://192.168.1.4:5000/extract-text');
+    final uri = Uri.parse('http://192.168.1.14:5000/extract-text');
     final request = http.MultipartRequest('POST', uri)
       ..files.add(await http.MultipartFile.fromPath('image', image.path));
 
@@ -194,7 +259,7 @@ class DisplayPictureScreen extends StatelessWidget {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Extracted Texts'),
+            title: const Text('Textos Extraídos'),
             content: SingleChildScrollView(
               child: ListBody(
                 children: extractedTexts.map((text) => Text(text)).toList(),
@@ -205,7 +270,7 @@ class DisplayPictureScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text('Close'),
+                child: const Text('Cerrar'),
               ),
               TextButton(
                 onPressed: () async {
@@ -218,7 +283,7 @@ class DisplayPictureScreen extends StatelessWidget {
           ),
         );
       } else {
-        print('Failed to extract text, server responded with status code: ${response.statusCode}');
+        print('Fallo al extraer los textos, el servidor a respondido con el código: ${response.statusCode}');
         throw Exception('Failed to extract text');
       }
     } catch (e) {
@@ -227,13 +292,13 @@ class DisplayPictureScreen extends StatelessWidget {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Error'),
-          content: Text('Failed to extract text: $e'),
+          content: Text('Fallo al extraer el texto: $e'),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('Close'),
+              child: const Text('Cerrar'),
             ),
           ],
         ),
@@ -262,7 +327,7 @@ class DisplayPictureScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Display Picture'),
+        title: const Text('Imagen Tomada'),
       ),
       body: Center(
         child: Column(
